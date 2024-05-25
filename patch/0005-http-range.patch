@@ -1,77 +1,41 @@
-diff --git a/src/AbstractHttpServerResponseCommand.cc b/src/AbstractHttpServerResponseCommand.cc
-index 928d5058..974c4271 100644
---- a/src/AbstractHttpServerResponseCommand.cc
-+++ b/src/AbstractHttpServerResponseCommand.cc
-@@ -1,3 +1,4 @@
-+
- /* <!-- copyright */
- /*
-  * aria2 - The high speed download utility
-diff --git a/src/HttpRequest.cc b/src/HttpRequest.cc
-index b5fb4f86..191e0ed3 100644
---- a/src/HttpRequest.cc
-+++ b/src/HttpRequest.cc
-@@ -53,6 +53,7 @@
- #include "Request.h"
- #include "DownloadHandlerConstants.h"
- #include "MessageDigest.h"
+diff --git a/src/HttpDownloadCommand.cc b/src/HttpDownloadCommand.cc
+index 0011a443..4acc64a7 100644
+--- a/src/HttpDownloadCommand.cc
++++ b/src/HttpDownloadCommand.cc
+@@ -53,6 +53,8 @@
+ #include "SinkStreamFilter.h"
+ #include "util.h"
+ #include "SocketRecvBuffer.h"
 +#include "LogFactory.h"
++#include "message.h"
  
  namespace aria2 {
  
-@@ -124,7 +125,7 @@ bool HttpRequest::isRangeSatisfied(const Range& range) const
-     return true;
-   }
-   return getStartByte() == range.startByte &&
--         (getEndByte() == 0 || getEndByte() == range.endByte) &&
-+         (getEndByte() == 0 || getEndByte() <= range.endByte) &&
-          (fileEntry_->getLength() == 0 ||
-           fileEntry_->getLength() == range.entityLength);
- }
-diff --git a/src/HttpResponse.cc b/src/HttpResponse.cc
-index 500cd64e..10eacc76 100644
---- a/src/HttpResponse.cc
-+++ b/src/HttpResponse.cc
-@@ -78,12 +78,24 @@ void HttpResponse::validateResponse() const
-       // compare the received range against the requested range
-       auto responseRange = httpHeader_->getRange();
-       if (!httpRequest_->isRangeSatisfied(responseRange)) {
--        throw DL_ABORT_EX2(
--            fmt(EX_INVALID_RANGE_HEADER, httpRequest_->getStartByte(),
--                httpRequest_->getEndByte(), httpRequest_->getEntityLength(),
--                responseRange.startByte, responseRange.endByte,
--                responseRange.entityLength),
--            error_code::CANNOT_RESUME);
-+        if (  httpRequest_->getEndByte() > 0 &&
-+                httpRequest_->getEndByte() <= responseRange.endByte){
-+          // Some servers return full length of file as endByte
-+          // regardless of what was requested.
-+          // If server offers more, ignore for a while and hope for the best.
-+          A2_LOG_WARN( fmt(MSG_STRANGE_RANGE_HEADER, cuid_,
-+                  httpRequest_->getStartByte(),
-+                  httpRequest_->getEndByte(), httpRequest_->getEntityLength(),
-+                  responseRange.startByte, responseRange.endByte,
-+                  responseRange.entityLength));
-+          } else {
-+            throw DL_ABORT_EX2(
-+                fmt(EX_INVALID_RANGE_HEADER, httpRequest_->getStartByte(),
-+                    httpRequest_->getEndByte(), httpRequest_->getEntityLength(),
-+                    responseRange.startByte, responseRange.endByte,
-+                    responseRange.entityLength),
-+                error_code::CANNOT_RESUME);
-+          }
-       }
+@@ -122,6 +124,15 @@ bool HttpDownloadCommand::prepareForNextSegment()
+     if (lastOffset == range.endByte + 1) {
+       return prepareForRetry(0);
      }
-     return;
++    else if (range.getContentLength() == getFileEntry()->getLength()) {
++      // Now we check if the body is empty. If it is, we need to retry
++      // the request.
++      if (httpResponse_->getContentLength() == 0) {
++        A2_LOG_WARN(fmt(MSG_STRANGE_RANGE_HEADER, getCuid(), range.startByte,
++                        range.endByte, range.entityLength));
++        return prepareForRetry(0);
++      }
++    }
+   }
+ 
+   return DownloadCommand::prepareForNextSegment();
 diff --git a/src/message.h b/src/message.h
-index 4705d7fb..13e5b9bd 100644
+index 4705d7fb..d0155f4b 100644
 --- a/src/message.h
 +++ b/src/message.h
-@@ -211,6 +211,7 @@
- #define MSG_REMOVING_UNSELECTED_FILE _("GID#%s - Removing unselected file.")
- #define MSG_FILE_REMOVED _("File %s removed.")
- #define MSG_FILE_COULD_NOT_REMOVED _("File %s could not be removed.")
-+#define MSG_STRANGE_RANGE_HEADER "CUID#%" PRId64 " Strange range header. Request: %" PRId64 "-%" PRId64 "/%" PRId64 ", Response: %" PRId64 "-%" PRId64 "/%" PRId64 ""
- 
- #define EX_TIME_OUT _("Timeout.")
- #define EX_INVALID_CHUNK_SIZE _("Invalid chunk size.")
+@@ -99,6 +99,7 @@
+ #define MSG_INCOMING_PEER_CONNECTION                            \
+   "CUID#%" PRId64 " - Incoming connection, adding new command CUID#%" PRId64 ""
+ #define MSG_ACCEPT_FAILURE "CUID#%" PRId64 " - Error in accepting connection"
++#define MSG_STRANGE_RANGE_HEADER "CUID#%" PRId64 " Strange range header. Response: %" PRId64 "-%" PRId64 "/%" PRId64 ""
+ #define MSG_TRACKER_RESPONSE_PROCESSING_FAILED                  \
+   "CUID#%" PRId64 " - Error occurred while processing tracker response."
+ #define MSG_DHT_ENABLED_PEER "CUID#%" PRId64 " - The peer is DHT-enabled."
