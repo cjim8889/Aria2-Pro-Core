@@ -1,0 +1,35 @@
+diff --git a/src/HttpResponse.cc b/src/HttpResponse.cc
+index 1ceaf9bb..e4d9806e 100644
+--- a/src/HttpResponse.cc
++++ b/src/HttpResponse.cc
+@@ -78,8 +78,7 @@ void HttpResponse::validateResponse() const
+       // compare the received range against the requested range
+       auto responseRange = httpHeader_->getRange();
+       if (!httpRequest_->isRangeSatisfied(responseRange)) {
+-        if (responseRange.getContentLength() == responseRange.entityLength &&
+-            getContentLength() == 0) {
++        if (responseRange.getContentLength() == responseRange.entityLength) {
+           // There's a chance that this is a server bug.
+           throw DL_RETRY_EX2(
+               fmt(EX_INVALID_RANGE_HEADER, httpRequest_->getStartByte(),
+@@ -88,12 +87,14 @@ void HttpResponse::validateResponse() const
+                   responseRange.entityLength),
+               error_code::HTTP_PROTOCOL_ERROR);
+         }
+-        throw DL_ABORT_EX2(
+-            fmt(EX_INVALID_RANGE_HEADER, httpRequest_->getStartByte(),
+-                httpRequest_->getEndByte(), httpRequest_->getEntityLength(),
+-                responseRange.startByte, responseRange.endByte,
+-                responseRange.entityLength),
+-            error_code::CANNOT_RESUME);
++        else {
++          throw DL_ABORT_EX2(
++              fmt(EX_INVALID_RANGE_HEADER, httpRequest_->getStartByte(),
++                  httpRequest_->getEndByte(), httpRequest_->getEntityLength(),
++                  responseRange.startByte, responseRange.endByte,
++                  responseRange.entityLength),
++              error_code::CANNOT_RESUME);
++        }
+       }
+     }
+     return;
