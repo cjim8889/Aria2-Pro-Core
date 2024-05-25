@@ -1,0 +1,92 @@
+diff --git a/src/AbstractProxyRequestCommand.cc b/src/AbstractProxyRequestCommand.cc
+index bd2bcb37..1feed07e 100644
+--- a/src/AbstractProxyRequestCommand.cc
++++ b/src/AbstractProxyRequestCommand.cc
+@@ -72,6 +72,7 @@ bool AbstractProxyRequestCommand::executeInternal()
+   if (httpConnection_->sendBufferIsEmpty()) {
+     auto httpRequest = make_unique<HttpRequest>();
+     httpRequest->setUserAgent(getOption()->get(PREF_USER_AGENT));
++    httpRequest->setNoWantDigest(!getOption()->getAsBool(PREF_HTTP_WANT_DIGEST));
+     httpRequest->setRequest(getRequest());
+     httpRequest->setProxyRequest(proxyRequest_);
+ 
+diff --git a/src/HttpRequestCommand.cc b/src/HttpRequestCommand.cc
+index 3ef3887c..b83a7849 100644
+--- a/src/HttpRequestCommand.cc
++++ b/src/HttpRequestCommand.cc
+@@ -90,6 +90,7 @@ createHttpRequest(const std::shared_ptr<Request>& req,
+ {
+   auto httpRequest = make_unique<HttpRequest>();
+   httpRequest->setUserAgent(option->get(PREF_USER_AGENT));
++  httpRequest->setNoWantDigest(!option->getAsBool(PREF_HTTP_WANT_DIGEST));
+   httpRequest->setRequest(req);
+   httpRequest->setFileEntry(fileEntry);
+   httpRequest->setSegment(segment);
+diff --git a/src/OptionHandlerFactory.cc b/src/OptionHandlerFactory.cc
+index 2cd2c43e..27c61fd8 100644
+--- a/src/OptionHandlerFactory.cc
++++ b/src/OptionHandlerFactory.cc
+@@ -1066,6 +1066,18 @@ std::vector<OptionHandler*> OptionHandlerFactory::createOptionHandlers()
+     op->setChangeOptionForReserved(true);
+     handlers.push_back(op);
+   }
++  {
++   OptionHandler* op(
++       new BooleanOptionHandler(PREF_HTTP_WANT_DIGEST,
++                                TEXT_HTTP_WANT_DIGEST,
++                                A2_V_FALSE, OptionHandler::OPT_ARG));
++   op->addTag(TAG_ADVANCED);
++   op->addTag(TAG_HTTP);
++   op->setInitialOption(true);
++    op->setChangeGlobalOption(true);
++    op->setChangeOptionForReserved(true);
++    handlers.push_back(op);
++}
+   {
+     OptionHandler* op(new BooleanOptionHandler(
+         PREF_ENABLE_HTTP_KEEP_ALIVE, TEXT_ENABLE_HTTP_KEEP_ALIVE, A2_V_TRUE,
+diff --git a/src/prefs.cc b/src/prefs.cc
+index 2591b9f0..314de13b 100644
+--- a/src/prefs.cc
++++ b/src/prefs.cc
+@@ -431,6 +431,8 @@ PrefPtr PREF_CONTENT_DISPOSITION_DEFAULT_UTF8 =
+     makePref("content-disposition-default-utf8");
+ // value: true | false
+ PrefPtr PREF_NO_WANT_DIGEST_HEADER = makePref("no-want-digest-header");
++// values: true | false
++PrefPtr PREF_HTTP_WANT_DIGEST = makePref("http-want-digest");
+ 
+ /**
+  * Proxy related preferences
+diff --git a/src/prefs.h b/src/prefs.h
+index 338fd6e6..39db5891 100644
+--- a/src/prefs.h
++++ b/src/prefs.h
+@@ -347,6 +347,8 @@ extern PrefPtr PREF_SSH_HOST_KEY_MD;
+ /**
+  * HTTP related preferences
+  */
++// value: true | false
++extern PrefPtr PREF_HTTP_WANT_DIGEST;
+ extern PrefPtr PREF_HTTP_USER;
+ extern PrefPtr PREF_HTTP_PASSWD;
+ // values: string
+diff --git a/src/usage_text.h b/src/usage_text.h
+index 08715436..dd229aba 100644
+--- a/src/usage_text.h
++++ b/src/usage_text.h
+@@ -68,6 +68,14 @@
+   _(" -t, --timeout=SEC            Set timeout in seconds.")
+ #define TEXT_MAX_TRIES                                                  \
+   _(" -m, --max-tries=N            Set number of tries. 0 means unlimited.")
++#define TEXT_HTTP_WANT_DIGEST                          \
++  _(" --http-want-digest[=true|false] Send Want-Digest HTTP requser header\n" \
++    "                              with only limited hash algorithms:\n" \
++    "                              SHA-512, SHA-256, and SHA-1.\n" \
++    "                              The Want-Digest HTTP header is primarily used\n" \
++    "                              in a HTTP request, to ask the responder to\n" \
++    "                              provide a digest of the requested resource\n" \
++    "                              using the Digest response header")
+ #define TEXT_HTTP_PROXY                                                 \
+   _(" --http-proxy=PROXY           Use a proxy server for HTTP. To override a\n"\
+     "                              previously defined proxy, use \"\".\n"   \
