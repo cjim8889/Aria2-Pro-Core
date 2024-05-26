@@ -1,5 +1,5 @@
 diff --git a/src/HttpResponse.cc b/src/HttpResponse.cc
-index 1ceaf9bb..e4d9806e 100644
+index 1ceaf9bb..58b94b8c 100644
 --- a/src/HttpResponse.cc
 +++ b/src/HttpResponse.cc
 @@ -78,8 +78,7 @@ void HttpResponse::validateResponse() const
@@ -23,12 +23,12 @@ index 1ceaf9bb..e4d9806e 100644
 -                responseRange.entityLength),
 -            error_code::CANNOT_RESUME);
 +        else {
-+          throw DL_ABORT_EX2(
++          throw DL_RETRY_EX2(
 +              fmt(EX_INVALID_RANGE_HEADER, httpRequest_->getStartByte(),
 +                  httpRequest_->getEndByte(), httpRequest_->getEntityLength(),
 +                  responseRange.startByte, responseRange.endByte,
 +                  responseRange.entityLength),
-+              error_code::CANNOT_RESUME);
++              error_code::HTTP_PROTOCOL_ERROR);
 +        }
        }
      }
